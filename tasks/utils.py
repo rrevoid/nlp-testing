@@ -6,6 +6,61 @@ from tqdm import tqdm
 from IPython.display import clear_output
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 
+
+def train_fc(model, optimizer, criterion, scheduler, loader, 
+                num_epochs=1, freq=10, device='cuda'):
+    i = 0
+    for epoch in range(num_epochs):
+        train_losses = []
+        val_losses = []
+
+        model.train()
+        for data in tqdm(loader):
+            text = torch.stack(data['embedding']).to(torch.float).to(device).t()
+            
+            labels = data['label'].to(device)
+
+            outputs = model(text)
+
+            loss = criterion(outputs, labels)
+            train_losses.append(loss.item())
+
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
+            i += 1
+            scheduler.step()
+
+            if i % freq == 0:
+                clear_output()
+                plt.plot(train_losses)
+                plt.show()
+
+
+def evaluate_model(model, loader, device='cuda'):
+    preds = []
+    correct = []
+
+    model.eval()
+    with torch.no_grad():
+        for data in loader:
+            text = torch.stack(data['embedding']).to(torch.float).to(device).t()
+            
+            labels = data['label'].to(device)
+
+            outputs = model(text)
+
+            preds += outputs.argmax(axis=1)
+            correct += labels
+
+    correct = torch.tensor(correct).cpu()
+    preds = torch.tensor(preds).cpu()
+
+    print('Accuracy:', (correct == preds).to(torch.float).mean().item())
+    print('F1 score:', f1_score(correct, preds))
+
+
 def get_model_and_tokenizer(name):
     torch.manual_seed(1)
     tokenizer = AutoTokenizer.from_pretrained(name)
@@ -23,28 +78,6 @@ def get_model_and_tokenizer(name):
 
     return model, tokenizer
 
-def evaluate_model(model, tokenizer, loader, device='cuda'):
-    preds = []
-    correct = []
-
-    model.eval()
-    with torch.no_grad():
-        for data in loader:
-            text = data['sentence']
-            encoded_input = tokenizer(text, return_tensors='pt', padding=True, 
-                                  max_length = 128, truncation=True).to(device)
-
-            labels = data['label'].to(device)
-            outputs = model(**encoded_input).logits
-
-            preds += outputs.argmax(axis=1)
-            correct += labels
-
-    correct = torch.tensor(correct).cpu()
-    preds = torch.tensor(preds).cpu()
-
-    print('Accuracy:', (correct == preds).to(torch.float).mean().item())
-    print('F1 score:', f1_score(correct, preds))
 
 def train_model(model, tokenizer, optimizer, criterion, scheduler, loader, 
                 num_epochs=1, freq=10, device='cuda'):
@@ -76,3 +109,27 @@ def train_model(model, tokenizer, optimizer, criterion, scheduler, loader,
                 clear_output()
                 plt.plot(train_losses)
                 plt.show()
+
+
+def evaluate_model(model, tokenizer, loader, device='cuda'):
+    preds = []
+    correct = []
+
+    model.eval()
+    with torch.no_grad():
+        for data in loader:
+            text = data['sentence']
+            encoded_input = tokenizer(text, return_tensors='pt', padding=True, 
+                                  max_length = 128, truncation=True).to(device)
+
+            labels = data['label'].to(device)
+            outputs = model(**encoded_input).logits
+
+            preds += outputs.argmax(axis=1)
+            correct += labels
+
+    correct = torch.tensor(correct).cpu()
+    preds = torch.tensor(preds).cpu()
+
+    print('Accuracy:', (correct == preds).to(torch.float).mean().item())
+    print('F1 score:', f1_score(correct, preds))

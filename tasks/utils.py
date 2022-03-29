@@ -38,7 +38,7 @@ def train_fc(model, optimizer, criterion, scheduler, loader,
                 plt.show()
 
 
-def evaluate_model(model, loader, device='cuda'):
+def evaluate_fc(model, loader, device='cuda'):
     preds = []
     correct = []
 
